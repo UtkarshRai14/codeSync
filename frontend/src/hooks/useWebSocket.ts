@@ -78,12 +78,19 @@ export function useWebSocket(
     // Store callbacks in refs to avoid recreating connect function
     const onCodeUpdateRef = useRef(onCodeUpdate);
     const onLanguageChangeRef = useRef(onLanguageChange);
+    const participantIdRef = useRef(options.participantId);
+    const nameRef = useRef(options.name);
 
     // Update refs when callbacks change
     useEffect(() => {
         onCodeUpdateRef.current = onCodeUpdate;
         onLanguageChangeRef.current = onLanguageChange;
     }, [onCodeUpdate, onLanguageChange]);
+
+    useEffect(() => {
+        participantIdRef.current = options.participantId;
+        nameRef.current = options.name;
+    }, [options.participantId, options.name]);
 
     /**
      * Sends a message through the WebSocket.
@@ -141,8 +148,8 @@ export function useWebSocket(
         shouldReconnectRef.current = true;
 
         const url = getWebSocketUrl(sessionId, {
-            participantId: options.participantId,
-            name: options.name,
+            participantId: participantIdRef.current,
+            name: nameRef.current,
         });
 
         try {
@@ -279,7 +286,7 @@ export function useWebSocket(
             setConnectionState('error');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sessionId, enabled, flushMessageQueue, options.participantId, options.name]);
+    }, [sessionId, enabled, flushMessageQueue]);
 
     /**
      * Reconnects to the WebSocket.

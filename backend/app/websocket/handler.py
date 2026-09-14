@@ -257,16 +257,17 @@ async def websocket_endpoint(
         logger.error("WebSocket error for participant %s: %s", participant_id, e)
     finally:
         # Clean up on disconnect
-        manager.disconnect(session_id, participant_id)
-        await service.remove_participant(session_id, participant_id)
+        was_active = manager.disconnect(session_id, participant_id, websocket)
+        if was_active:
+            await service.remove_participant(session_id, participant_id)
 
-        # Notify others about departure
-        await manager.broadcast(
-            session_id,
-            {
-                "type": MessageType.USER_LEFT.value,
-                "payload": {"participant_id": participant_id},
-                "sender_id": participant_id,
-                "timestamp": datetime.now().isoformat(),
-            },
-        )
+            # Notify others about departure
+            await manager.broadcast(
+                session_id,
+                {
+                    "type": MessageType.USER_LEFT.value,
+                    "payload": {"participant_id": participant_id},
+                    "sender_id": participant_id,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )

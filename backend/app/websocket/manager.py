@@ -47,23 +47,32 @@ class ConnectionManager:
             "Participant %s connected to session %s", participant_id, session_id
         )
 
-    def disconnect(self, session_id: str, participant_id: str) -> None:
+    def disconnect(
+        self, session_id: str, participant_id: str, websocket: WebSocket
+    ) -> bool:
         """Remove a WebSocket connection from the registry.
 
         Args:
             session_id: Session the participant was in.
             participant_id: Participant to remove.
+            websocket: The connection requesting removal.
+
+        Returns:
+            True if this connection was active and removed, otherwise False.
         """
-        if session_id in self.active_connections:
-            self.active_connections[session_id].pop(participant_id, None)
-            # Clean up empty sessions
-            if not self.active_connections[session_id]:
-                del self.active_connections[session_id]
-            logger.info(
-                "Participant %s disconnected from session %s",
-                participant_id,
-                session_id,
-            )
+        connections = self.active_connections.get(session_id)
+        if connections is None or connections.get(participant_id) is not websocket:
+            return False
+
+        del connections[participant_id]
+        if not connections:
+            del self.active_connections[session_id]
+        logger.info(
+            "Participant %s disconnected from session %s",
+            participant_id,
+            session_id,
+        )
+        return True
 
     async def broadcast(
         self,
@@ -82,7 +91,7 @@ class ConnectionManager:
             return
 
         message_json = json.dumps(message, default=str)
-        disconnected = []
+        disconnected: list[tuple[str, WebSocket]] = []
 
         for participant_id, websocket in self.active_connections[session_id].items():
             if participant_id == exclude_participant:
@@ -94,11 +103,11 @@ class ConnectionManager:
                 logger.warning(
                     "Failed to send to participant %s: %s", participant_id, e
                 )
-                disconnected.append(participant_id)
+                disconnected.append((participant_id, websocket))
 
         # Clean up disconnected clients
-        for participant_id in disconnected:
-            self.disconnect(session_id, participant_id)
+        for participant_id, websocket in disconnected:
+            self.disconnect(session_id, participant_id, websocket)
 
     async def send_to_participant(
         self, session_id: str, participant_id: str, message: dict[str, Any]
@@ -125,7 +134,7 @@ class ConnectionManager:
             return True
         except Exception as e:
             logger.warning("Failed to send to participant %s: %s", participant_id, e)
-            self.disconnect(session_id, participant_id)
+            self.disconnect(session_id, participant_id, websocket)
             return False
 
     def get_participant_count(self, session_id: str) -> int:
