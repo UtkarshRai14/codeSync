@@ -41,12 +41,14 @@ class Participant(BaseModel):
         name: Display name of the participant.
         color: Hex color for cursor/selection highlighting.
         cursor_position: Current cursor line and column.
+        selection: Optional active selection range in editor coordinates.
     """
 
     id: str
     name: str = "Anonymous"
     color: str = "#3b82f6"
     cursor_position: dict[str, int] | None = None
+    selection: dict[str, int] | None = None
 
 
 class SessionCreate(BaseModel):

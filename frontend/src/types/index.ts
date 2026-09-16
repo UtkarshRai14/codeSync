@@ -15,6 +15,8 @@ export interface Participant {
     color: string;
     /** Current cursor position in the editor */
     cursorPosition?: CursorPosition;
+    /** Current active selection, if present */
+    selection?: SelectionRange;
 }
 
 /**
@@ -25,6 +27,20 @@ export interface CursorPosition {
     line: number;
     /** Column number (1-indexed) */
     column: number;
+}
+
+/**
+ * Active editor selection range.
+ */
+export interface SelectionRange {
+    /** 1-indexed start line */
+    startLine: number;
+    /** 1-indexed start column */
+    startColumn: number;
+    /** 1-indexed end line */
+    endLine: number;
+    /** 1-indexed end column */
+    endColumn: number;
 }
 
 /**

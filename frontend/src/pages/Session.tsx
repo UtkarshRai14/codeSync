@@ -29,7 +29,7 @@ import { useCodeExecution } from '../hooks/useCodeExecution';
 import { getSession } from '../lib/api';
 import { cn } from '../lib/utils';
 import { debounce } from '../lib/utils';
-import type { Session } from '../types';
+import type { SelectionRange, Session } from '../types';
 
 function generateParticipantId(): string {
     const uuid = globalThis.crypto?.randomUUID?.();
@@ -179,6 +179,27 @@ export function SessionPage(): ReactElement {
         name: name || undefined,
     });
 
+    const remoteCursors = Object.fromEntries(
+        participants
+            .filter((participant) => participant.id !== currentParticipant?.id && participant.cursorPosition)
+            .map((participant) => [participant.id, {
+                id: participant.id,
+                name: participant.name,
+                color: participant.color,
+                position: participant.cursorPosition!,
+            }])
+    );
+
+    const remoteSelections = Object.fromEntries(
+        participants
+            .filter((participant) => participant.id !== currentParticipant?.id && participant.selection)
+            .map((participant) => [participant.id, {
+                id: participant.id,
+                color: participant.color,
+                selection: participant.selection!,
+            }])
+    );
+
     // Save identity when connected
     useEffect(() => {
         if (currentParticipant && sessionId) {
@@ -217,6 +238,31 @@ export function SessionPage(): ReactElement {
         setCode(newCode);
         debouncedSendCodeUpdate(newCode);
     };
+
+    const handleCursorChange = useCallback((line: number, column: number) => {
+        sendMessage({
+            type: 'cursor_position',
+            payload: { line, column },
+        });
+    }, [sendMessage]);
+
+    const handleSelectionChange = useCallback((selection: SelectionRange | null, line: number, column: number) => {
+        sendMessage({
+            type: 'cursor_position',
+            payload: {
+                line,
+                column,
+                selection: selection
+                    ? {
+                          start_line: selection.startLine,
+                          start_column: selection.startColumn,
+                          end_line: selection.endLine,
+                          end_column: selection.endColumn,
+                      }
+                    : null,
+            },
+        });
+    }, [sendMessage]);
 
     // Handle language change
     const handleLanguageSelect = (newLanguage: string) => {
@@ -370,6 +416,10 @@ export function SessionPage(): ReactElement {
                             value={code}
                             language={language}
                             onChange={handleCodeChange}
+                            onCursorChange={handleCursorChange}
+                            onSelectionChange={handleSelectionChange}
+                            remoteCursors={remoteCursors}
+                            remoteSelections={remoteSelections}
                             className="h-full"
                         />
                     </div>

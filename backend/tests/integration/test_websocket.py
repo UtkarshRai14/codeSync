@@ -238,5 +238,20 @@ class TestConnectionManager:
 
     def test_disconnect_nonexistent(self, manager) -> None:
         """Test disconnecting from non-existent session doesn't error."""
-        # Should not raise
-        manager.disconnect("nonexistent", "user1")
+        assert manager.disconnect("nonexistent", "user1", object()) is False
+
+    async def test_stale_disconnect_does_not_remove_replacement(self, manager) -> None:
+        """An old connection must not remove a participant's replacement socket."""
+        from unittest.mock import AsyncMock
+
+        websocket1 = type("WebSocketStub", (), {"accept": AsyncMock()})()
+        websocket2 = type("WebSocketStub", (), {"accept": AsyncMock()})()
+
+        await manager.connect(websocket1, "session", "user1")
+        await manager.connect(websocket2, "session", "user1")
+
+        assert manager.active_connections["session"]["user1"] is websocket2
+        assert manager.disconnect("session", "user1", websocket1) is False
+        assert manager.active_connections["session"]["user1"] is websocket2
+        assert manager.disconnect("session", "user1", websocket2) is True
+        assert manager.get_participant_count("session") == 0

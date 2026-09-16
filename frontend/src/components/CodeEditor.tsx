@@ -3,14 +3,29 @@
  * @module components/CodeEditor
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactElement } from 'react';
 import Editor from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import type { editor } from 'monaco-editor';
 import { cn } from '../lib/utils';
+import type { CursorPosition, SelectionRange } from '../types';
 
 /** Monaco editor instance type */
 type EditorInstance = editor.IStandaloneCodeEditor;
+
+export interface RemoteCursorData {
+    id: string;
+    name: string;
+    color: string;
+    position: CursorPosition;
+}
+
+export interface RemoteSelectionData {
+    id: string;
+    color: string;
+    selection: SelectionRange;
+}
 
 export interface CodeEditorProps {
     /** Current code content */
@@ -21,10 +36,34 @@ export interface CodeEditorProps {
     onChange?: (value: string) => void;
     /** Callback when cursor position changes */
     onCursorChange?: (line: number, column: number) => void;
+    /** Callback when active selection changes */
+    onSelectionChange?: (
+        selection: SelectionRange | null,
+        line: number,
+        column: number,
+    ) => void;
+    /** Remote participant cursors to display */
+    remoteCursors?: Record<string, RemoteCursorData>;
+    /** Remote participant selections to display */
+    remoteSelections?: Record<string, RemoteSelectionData>;
     /** Whether the editor is read-only */
     readOnly?: boolean;
     /** Additional CSS classes */
     className?: string;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+    const cleaned = hex.replace('#', '');
+    const value = cleaned.length === 3
+        ? cleaned.split('').map((char) => char + char).join('')
+        : cleaned;
+
+    const numeric = Number.parseInt(value, 16);
+    const red = (numeric >> 16) & 255;
+    const green = (numeric >> 8) & 255;
+    const blue = numeric & 255;
+
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 /**
@@ -39,10 +78,103 @@ export function CodeEditor({
     language,
     onChange,
     onCursorChange,
+    onSelectionChange,
+    remoteCursors = {},
+    remoteSelections = {},
     readOnly = false,
     className,
 }: CodeEditorProps): ReactElement {
     const editorRef = useRef<EditorInstance | null>(null);
+    const cursorDecorationIdsRef = useRef<string[]>([]);
+    const selectionDecorationIdsRef = useRef<string[]>([]);
+
+    const remotePresenceStyles = useMemo(() => {
+        const styles: string[] = [
+            '.monaco-editor .remote-cursor-label { padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 1.4; letter-spacing: 0.02em; white-space: pre; }',
+        ];
+
+        Object.values(remoteCursors).forEach((cursor) => {
+            styles.push(`
+                .monaco-editor .remote-cursor-label-${cursor.id} {
+                    background-color: ${cursor.color};
+                    color: #fff;
+                    border: 1px solid ${cursor.color};
+                    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+                }
+            `);
+        });
+
+        Object.values(remoteSelections).forEach((selection) => {
+            styles.push(`
+                .monaco-editor .remote-selection-${selection.id} {
+                    background-color: ${hexToRgba(selection.color, 0.25)};
+                    border: 1px solid ${selection.color};
+                    box-sizing: border-box;
+                }
+            `);
+        });
+
+        return styles.join('\n');
+    }, [remoteCursors, remoteSelections]);
+
+    useEffect(() => {
+        const styleTag = document.getElementById('codesync-remote-presence-styles');
+        if (styleTag) {
+            styleTag.textContent = remotePresenceStyles;
+            return;
+        }
+
+        const newStyleTag = document.createElement('style');
+        newStyleTag.id = 'codesync-remote-presence-styles';
+        newStyleTag.textContent = remotePresenceStyles;
+        document.head.appendChild(newStyleTag);
+    }, [remotePresenceStyles]);
+
+    useEffect(() => {
+        const editor = editorRef.current;
+        if (!editor) {
+            return;
+        }
+
+        const cursorDecorations = Object.values(remoteCursors).map((cursor) => ({
+            range: new monaco.Range(
+                cursor.position.line,
+                cursor.position.column,
+                cursor.position.line,
+                cursor.position.column,
+            ),
+            options: {
+                className: 'remote-cursor-marker',
+                after: {
+                    content: ` ${cursor.name}`,
+                    inlineClassName: `remote-cursor-label remote-cursor-label-${cursor.id}`,
+                },
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+            },
+        }));
+
+        const selectionDecorations = Object.values(remoteSelections).map((selection) => ({
+            range: new monaco.Range(
+                selection.selection.startLine,
+                selection.selection.startColumn,
+                selection.selection.endLine,
+                selection.selection.endColumn,
+            ),
+            options: {
+                className: `remote-selection-${selection.id}`,
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+            },
+        }));
+
+        cursorDecorationIdsRef.current = editor.deltaDecorations(
+            cursorDecorationIdsRef.current,
+            cursorDecorations,
+        );
+        selectionDecorationIdsRef.current = editor.deltaDecorations(
+            selectionDecorationIdsRef.current,
+            selectionDecorations,
+        );
+    }, [remoteCursors, remoteSelections]);
 
     /**
      * Handles editor mount event.
@@ -52,15 +184,31 @@ export function CodeEditor({
         (editor: EditorInstance) => {
             editorRef.current = editor;
 
-            // Set up cursor position tracking
-            editor.onDidChangeCursorPosition((e) => {
-                onCursorChange?.(e.position.lineNumber, e.position.column);
-            });
+            if (typeof editor.onDidChangeCursorSelection === 'function') {
+                editor.onDidChangeCursorSelection((event) => {
+                    const position = event.selection.getPosition();
+                    const selection = event.selection.isEmpty()
+                        ? null
+                        : {
+                              startLine: event.selection.startLineNumber,
+                              startColumn: event.selection.startColumn,
+                              endLine: event.selection.endLineNumber,
+                              endColumn: event.selection.endColumn,
+                          };
 
-            // Focus the editor
+                    onCursorChange?.(position.lineNumber, position.column);
+                    onSelectionChange?.(selection, position.lineNumber, position.column);
+                });
+            } else if (typeof editor.onDidChangeCursorPosition === 'function') {
+                editor.onDidChangeCursorPosition((event) => {
+                    onCursorChange?.(event.position.lineNumber, event.position.column);
+                    onSelectionChange?.(null, event.position.lineNumber, event.position.column);
+                });
+            }
+
             editor.focus();
         },
-        [onCursorChange]
+        [onCursorChange, onSelectionChange]
     );
 
     /**

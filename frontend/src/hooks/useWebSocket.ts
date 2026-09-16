@@ -11,13 +11,65 @@ import { getWebSocketUrl } from '../lib/api';
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
 /** Raw sync_response payload from backend (snake_case keys) */
+interface ParticipantRawPayload {
+    id?: string;
+    participant_id?: string;
+    participant_name?: string;
+    participant_color?: string;
+    name?: string;
+    color?: string;
+    cursor_position?: {
+        line?: number;
+        column?: number;
+    } | null;
+    selection?: {
+        start_line?: number;
+        start_column?: number;
+        end_line?: number;
+        end_column?: number;
+    } | null;
+}
+
 interface SyncResponseRawPayload {
     participant_id: string;
     participant_name: string;
     participant_color: string;
-    participants: Participant[];
+    participants: ParticipantRawPayload[];
     code: string;
     language: string;
+}
+
+function normalizeParticipant(participant: ParticipantRawPayload): Participant {
+    const cursorPosition = participant.cursor_position;
+    const selection = participant.selection;
+
+    return {
+        id: participant.id ?? participant.participant_id ?? '',
+        name: participant.name ?? participant.participant_name ?? 'Anonymous',
+        color: participant.color ?? participant.participant_color ?? '#3b82f6',
+        ...(cursorPosition && typeof cursorPosition.line === 'number' && typeof cursorPosition.column === 'number'
+            ? {
+                  cursorPosition: {
+                      line: cursorPosition.line,
+                      column: cursorPosition.column,
+                  },
+              }
+            : {}),
+        ...(selection &&
+        typeof selection.start_line === 'number' &&
+        typeof selection.start_column === 'number' &&
+        typeof selection.end_line === 'number' &&
+        typeof selection.end_column === 'number'
+            ? {
+                  selection: {
+                      startLine: selection.start_line,
+                      startColumn: selection.start_column,
+                      endLine: selection.end_line,
+                      endColumn: selection.end_column,
+                  },
+              }
+            : {}),
+    };
 }
 
 /** WebSocket hook return type */
@@ -225,12 +277,13 @@ export function useWebSocket(
                         case 'sync_response': {
                             // Backend sends snake_case keys
                             const payload = message.payload as unknown as SyncResponseRawPayload;
-                            setCurrentParticipant({
+                            setCurrentParticipant(normalizeParticipant({
                                 id: payload.participant_id,
-                                name: payload.participant_name,
-                                color: payload.participant_color,
-                            });
-                            setParticipants(payload.participants || []);
+                                participant_id: payload.participant_id,
+                                participant_name: payload.participant_name,
+                                participant_color: payload.participant_color,
+                            }));
+                            setParticipants((payload.participants || []).map((participant) => normalizeParticipant(participant)));
                             onCodeUpdateRef.current?.(payload.code, payload.language);
                             break;
                         }
@@ -242,6 +295,89 @@ export function useWebSocket(
                             break;
                         }
 
+                        case 'cursor_position': {
+                            const incomingParticipantId = (message.senderId ?? message.payload.participant_id) as string | undefined;
+                            if (!incomingParticipantId) {
+                                break;
+                            }
+
+                            const line = message.payload.line as number | undefined;
+                            const column = message.payload.column as number | undefined;
+                            const selection = message.payload.selection as {
+                                start_line?: number;
+                                start_column?: number;
+                                end_line?: number;
+                                end_column?: number;
+                            } | null | undefined;
+
+                            setParticipants((prev) =>
+                                prev.map((participant) => {
+                                    if (participant.id !== incomingParticipantId) {
+                                        return participant;
+                                    }
+
+                                    const nextParticipant: Participant = {
+                                        ...participant,
+                                        ...(typeof line === 'number' && typeof column === 'number'
+                                            ? {
+                                                  cursorPosition: { line, column },
+                                              }
+                                            : {}),
+                                        ...(selection &&
+                                        typeof selection.start_line === 'number' &&
+                                        typeof selection.start_column === 'number' &&
+                                        typeof selection.end_line === 'number' &&
+                                        typeof selection.end_column === 'number'
+                                            ? {
+                                                  selection: {
+                                                      startLine: selection.start_line,
+                                                      startColumn: selection.start_column,
+                                                      endLine: selection.end_line,
+                                                      endColumn: selection.end_column,
+                                                  },
+                                              }
+                                            : selection === null
+                                              ? { selection: undefined }
+                                              : {}),
+                                    };
+
+                                    return nextParticipant;
+                                })
+                            );
+
+                            if (currentParticipant?.id === incomingParticipantId) {
+                                setCurrentParticipant((prev) =>
+                                    prev
+                                        ? {
+                                              ...prev,
+                                              ...(typeof line === 'number' && typeof column === 'number'
+                                                  ? {
+                                                        cursorPosition: { line, column },
+                                                    }
+                                                  : {}),
+                                              ...(selection &&
+                                              typeof selection.start_line === 'number' &&
+                                              typeof selection.start_column === 'number' &&
+                                              typeof selection.end_line === 'number' &&
+                                              typeof selection.end_column === 'number'
+                                                  ? {
+                                                        selection: {
+                                                            startLine: selection.start_line,
+                                                            startColumn: selection.start_column,
+                                                            endLine: selection.end_line,
+                                                            endColumn: selection.end_column,
+                                                        },
+                                                    }
+                                                  : selection === null
+                                                    ? { selection: undefined }
+                                                    : {}),
+                                          }
+                                        : prev
+                                );
+                            }
+                            break;
+                        }
+
                         case 'language_change': {
                             const { language } = message.payload as { language: string };
                             onLanguageChangeRef.current?.(language);
@@ -249,11 +385,12 @@ export function useWebSocket(
                         }
 
                         case 'user_joined': {
-                            const newParticipant: Participant = {
+                            const newParticipant: Participant = normalizeParticipant({
                                 id: message.payload.participant_id as string,
-                                name: message.payload.participant_name as string,
-                                color: message.payload.participant_color as string,
-                            };
+                                participant_id: message.payload.participant_id as string,
+                                participant_name: message.payload.participant_name as string,
+                                participant_color: message.payload.participant_color as string,
+                            });
                             setParticipants((prev) => [...prev, newParticipant]);
                             break;
                         }

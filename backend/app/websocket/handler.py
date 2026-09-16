@@ -124,8 +124,14 @@ async def websocket_endpoint(
                     "participant_name": participant_name,
                     "participant_color": participant_color,
                     "participants": [
-                        {"id": p.id, "name": p.name, "color": p.color}
-                        for p in session.participants
+                    {
+                        "id": p.id,
+                        "name": p.name,
+                        "color": p.color,
+                        "cursor_position": p.cursor_position,
+                        "selection": p.selection,
+                    }
+                    for p in session.participants
                     ],
                 },
                 "timestamp": datetime.now().isoformat(),
@@ -174,6 +180,19 @@ async def websocket_endpoint(
                 )
 
             elif message_type == MessageType.CURSOR_POSITION.value:
+                current_session = await service.get_session(session_id)
+                if current_session:
+                    for current_participant in current_session.participants:
+                        if current_participant.id == participant_id:
+                            if "line" in payload and "column" in payload:
+                                current_participant.cursor_position = {
+                                    "line": int(payload["line"]),
+                                    "column": int(payload["column"]),
+                                }
+                            if "selection" in payload:
+                                current_participant.selection = payload["selection"]
+                            break
+
                 # Broadcast cursor position to others
                 await manager.broadcast(
                     session_id,
@@ -242,7 +261,13 @@ async def websocket_endpoint(
                                 "code": current_session.code,
                                 "language": current_session.language,
                                 "participants": [
-                                    {"id": p.id, "name": p.name, "color": p.color}
+                                    {
+                                        "id": p.id,
+                                        "name": p.name,
+                                        "color": p.color,
+                                        "cursor_position": p.cursor_position,
+                                        "selection": p.selection,
+                                    }
                                     for p in current_session.participants
                                 ],
                             },
