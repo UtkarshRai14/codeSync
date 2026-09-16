@@ -92,6 +92,8 @@ export interface WebSocketMessage {
     payload: Record<string, unknown>;
     /** ID of the participant who sent the message */
     senderId?: string;
+    /** Backend-compatible participant sender ID */
+    sender_id?: string;
     /** When the message was created */
     timestamp: string;
 }

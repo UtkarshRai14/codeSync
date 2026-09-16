@@ -91,10 +91,14 @@ export function CodeEditor({
     const remotePresenceStyles = useMemo(() => {
         const styles: string[] = [
             '.monaco-editor .remote-cursor-label { padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 1.4; letter-spacing: 0.02em; white-space: pre; }',
+            '.monaco-editor .remote-cursor-marker { border-left: 2px solid currentColor; margin-left: -1px; }',
         ];
 
         Object.values(remoteCursors).forEach((cursor) => {
             styles.push(`
+                .monaco-editor .remote-cursor-marker-${cursor.id} {
+                    color: ${cursor.color};
+                }
                 .monaco-editor .remote-cursor-label-${cursor.id} {
                     background-color: ${cursor.color};
                     color: #fff;
@@ -144,7 +148,7 @@ export function CodeEditor({
                 cursor.position.column,
             ),
             options: {
-                className: 'remote-cursor-marker',
+                className: `remote-cursor-marker remote-cursor-marker-${cursor.id}`,
                 after: {
                     content: ` ${cursor.name}`,
                     inlineClassName: `remote-cursor-label remote-cursor-label-${cursor.id}`,
@@ -251,4 +255,3 @@ export function CodeEditor({
         </div>
     );
 }
-

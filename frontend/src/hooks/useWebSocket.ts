@@ -296,7 +296,8 @@ export function useWebSocket(
                         }
 
                         case 'cursor_position': {
-                            const incomingParticipantId = (message.senderId ?? message.payload.participant_id) as string | undefined;
+                            const incomingParticipantId =
+                                (message.senderId ?? message.sender_id ?? message.payload.participant_id) as string | undefined;
                             if (!incomingParticipantId) {
                                 break;
                             }
