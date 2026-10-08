@@ -46,15 +46,16 @@ export class PythonExecutor implements CodeExecutor {
      */
     async initialize(): Promise<void> {
         if (this.pyodide) return;
-        if (this.loadPromise) return this.loadPromise;
 
-        this.loadPromise = this.loadPyodide();
-
-        try {
-            await this.loadPromise;
-        } finally {
-            // loadPromise is reset on success via pyodide assignment
+        if (!this.loadPromise) {
+            // Drop the cached promise on failure so a later run can retry
+            this.loadPromise = this.loadPyodide().catch((err: unknown) => {
+                this.loadPromise = null;
+                throw err;
+            });
         }
+
+        return this.loadPromise;
     }
 
     /**

@@ -44,7 +44,7 @@ export interface SelectionRange {
 }
 
 /**
- * Interview session data model.
+ * Interview session data model, as returned by the backend REST API.
  */
 export interface Session {
     /** Unique session identifier */
@@ -54,9 +54,9 @@ export interface Session {
     /** Programming language for syntax highlighting */
     language: string;
     /** Number of connected participants */
-    participantCount: number;
-    /** Shareable URL for the session */
-    shareUrl: string;
+    participant_count: number;
+    /** Shareable (relative) URL for the session */
+    share_url: string;
 }
 
 /**
@@ -90,42 +90,10 @@ export interface WebSocketMessage {
     type: MessageType;
     /** Message data specific to the type */
     payload: Record<string, unknown>;
-    /** ID of the participant who sent the message */
-    senderId?: string;
-    /** Backend-compatible participant sender ID */
+    /** ID of the participant who sent the message (set by the backend) */
     sender_id?: string;
     /** When the message was created */
     timestamp: string;
-}
-
-/**
- * Payload for code update messages.
- */
-export interface CodeUpdatePayload {
-    /** Updated code content */
-    code: string;
-    /** Optional language change */
-    language?: string;
-}
-
-/**
- * Payload for sync response messages.
- */
-export interface SyncResponsePayload {
-    /** Session ID */
-    sessionId: string;
-    /** Current code content */
-    code: string;
-    /** Current language */
-    language: string;
-    /** This participant's ID */
-    participantId: string;
-    /** This participant's name */
-    participantName: string;
-    /** This participant's color */
-    participantColor: string;
-    /** List of other participants */
-    participants: Participant[];
 }
 
 /**

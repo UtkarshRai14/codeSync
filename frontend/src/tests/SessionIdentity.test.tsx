@@ -9,8 +9,8 @@ vi.mock('../lib/api', () => ({
         id: 'test-session',
         code: 'print("hello")',
         language: 'python',
-        participantCount: 1,
-        shareUrl: 'http://test/session/test-session'
+        participant_count: 1,
+        share_url: '/session/test-session'
     }),
     getWebSocketUrl: vi.fn().mockReturnValue('ws://test/ws/test-session'),
     ApiError: Error

@@ -40,11 +40,11 @@ export class ApiError extends Error {
  */
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
         headers: {
             'Content-Type': 'application/json',
             ...options?.headers,
         },
-        ...options,
     });
 
     if (!response.ok) {

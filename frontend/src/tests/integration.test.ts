@@ -11,8 +11,8 @@ const mockServerResponses = {
         id: string;
         code: string;
         language: string;
-        participantCount: number;
-        shareUrl: string;
+        participant_count: number;
+        share_url: string;
     }>(),
 };
 
@@ -32,8 +32,8 @@ function setupMockServer() {
                 id: sessionId,
                 code: body.code || '',
                 language: body.language || 'python',
-                participantCount: 0,
-                shareUrl: `/session/${sessionId}`,
+                participant_count: 0,
+                share_url: `/session/${sessionId}`,
             };
             mockServerResponses.sessions.set(sessionId, session);
 
@@ -113,7 +113,7 @@ describe('Client-Server Integration', () => {
             expect(created.id).toBeDefined();
             expect(created.language).toBe('javascript');
             expect(created.code).toBe('console.log("hello");');
-            expect(created.shareUrl).toContain(created.id);
+            expect(created.share_url).toContain(created.id);
 
             // Retrieve the same session
             const retrieved = await getSession(created.id);
