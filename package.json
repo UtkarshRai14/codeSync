@@ -5,11 +5,11 @@
     "private": true,
     "scripts": {
         "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-        "dev:backend": "cd backend && make dev",
+        "dev:backend": "cd backend && uv run uvicorn app.main:app --reload",
         "dev:frontend": "cd frontend && npm run dev",
-        "install:all": "npm install && cd frontend && npm install && cd ../backend && uv sync",
+        "install:all": "npm install && cd frontend && npm install && cd ../backend && uv sync --extra dev",
         "test": "concurrently \"npm run test:backend\" \"npm run test:frontend\"",
-        "test:backend": "cd backend && make test",
+        "test:backend": "cd backend && uv run pytest",
         "test:frontend": "cd frontend && npm run test"
     },
     "devDependencies": {

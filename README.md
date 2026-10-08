@@ -18,7 +18,7 @@ Write, share, and solve problems together with instant synchronization and brows
 
 * **Real-time Collaboration**: Instant code synchronization between participants using WebSockets. See changes as they happen.
 
-* **Browser-based Execution**: Execute Python code directly in the browser using [Pyodide](https://pyodide.org/) — fast, secure, and no backend execution overhead.
+* **Browser-based Execution**: Run Python (via [Pyodide](https://pyodide.org/)) and JavaScript directly in the browser — no backend execution overhead.
 
 * **Session Management**: Diverse interview sessions with unique shareable links.
 
@@ -142,10 +142,10 @@ Run the entire stack with a single command:
 ```bash
 docker build -t codesync .
 
-docker run -p 8080:8080 codesync
+docker run -p 8000:8000 codesync
 ```
 
-Open `http://localhost:8080` to see the app running.
+Open `http://localhost:8000` to see the app running. Set the `PORT` environment variable to listen on a different port.
 
 ## 📂 Project Structure
 

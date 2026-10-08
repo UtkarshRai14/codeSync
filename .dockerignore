@@ -1,0 +1,13 @@
+# Keep host build artifacts and environments out of the image build context.
+# In particular, a host node_modules must not overwrite the one installed by
+# `npm ci` inside the container (native binaries are platform-specific).
+.git
+.github
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.coverage
+**/.env

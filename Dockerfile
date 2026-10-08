@@ -16,9 +16,6 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies (if needed)
-# RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
-
 # Install uv for fast python dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
@@ -35,7 +32,6 @@ RUN uv pip install --system -r requirements.txt
 
 # Copy backend source
 COPY backend/app ./app
-COPY backend/pyproject.toml .
 
 # Copy built frontend assets to backend static directory
 # Vite output defaults to 'dist', we map it to 'app/static' which main.py expects
@@ -46,5 +42,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 
 # Run application
-# Use shell form to allow variable expansion for PORT
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Shell form allows variable expansion for PORT; exec makes uvicorn PID 1
+# so it receives SIGTERM and shuts down gracefully
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
