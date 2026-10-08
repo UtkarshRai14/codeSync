@@ -27,9 +27,8 @@ import { Input } from '../components/ui/input';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useCodeExecution } from '../hooks/useCodeExecution';
 import { getSession } from '../lib/api';
-import { cn } from '../lib/utils';
-import { debounce } from '../lib/utils';
-import type { SelectionRange, Session } from '../types';
+import { cn, debounce } from '../lib/utils';
+import type { SelectionRange } from '../types';
 
 function generateParticipantId(): string {
     const uuid = globalThis.crypto?.randomUUID?.();
@@ -46,7 +45,6 @@ export function SessionPage(): ReactElement {
     const { sessionId } = useParams<{ sessionId: string }>();
     const navigate = useNavigate();
 
-    const [, setSession] = useState<Session | null>(null);
     const [code, setCode] = useState<string>('');
     const [language, setLanguage] = useState<string>('python');
     const [loading, setLoading] = useState(true);
@@ -84,7 +82,6 @@ export function SessionPage(): ReactElement {
         const fetchSession = async () => {
             try {
                 const sessionData = await getSession(sessionId);
-                setSession(sessionData);
                 setCode(sessionData.code);
                 setLanguage(sessionData.language);
 
@@ -239,13 +236,7 @@ export function SessionPage(): ReactElement {
         debouncedSendCodeUpdate(newCode);
     };
 
-    const handleCursorChange = useCallback((line: number, column: number) => {
-        sendMessage({
-            type: 'cursor_position',
-            payload: { line, column },
-        });
-    }, [sendMessage]);
-
+    // Cursor and selection are sent together in a single message
     const handleSelectionChange = useCallback((selection: SelectionRange | null, line: number, column: number) => {
         sendMessage({
             type: 'cursor_position',
@@ -416,7 +407,6 @@ export function SessionPage(): ReactElement {
                             value={code}
                             language={language}
                             onChange={handleCodeChange}
-                            onCursorChange={handleCursorChange}
                             onSelectionChange={handleSelectionChange}
                             remoteCursors={remoteCursors}
                             remoteSelections={remoteSelections}

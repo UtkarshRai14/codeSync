@@ -4,13 +4,21 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { WebSocketMessage, Participant } from '../types';
+import type { WebSocketMessage, Participant, SelectionRange } from '../types';
 import { getWebSocketUrl } from '../lib/api';
 
 /** WebSocket connection states */
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-/** Raw sync_response payload from backend (snake_case keys) */
+/** Raw selection payload from backend (snake_case keys) */
+interface SelectionRawPayload {
+    start_line?: number;
+    start_column?: number;
+    end_line?: number;
+    end_column?: number;
+}
+
+/** Raw participant payload from backend (snake_case keys) */
 interface ParticipantRawPayload {
     id?: string;
     participant_id?: string;
@@ -22,12 +30,7 @@ interface ParticipantRawPayload {
         line?: number;
         column?: number;
     } | null;
-    selection?: {
-        start_line?: number;
-        start_column?: number;
-        end_line?: number;
-        end_column?: number;
-    } | null;
+    selection?: SelectionRawPayload | null;
 }
 
 interface SyncResponseRawPayload {
@@ -39,9 +42,27 @@ interface SyncResponseRawPayload {
     language: string;
 }
 
+function normalizeSelection(selection: SelectionRawPayload | null | undefined): SelectionRange | undefined {
+    if (
+        selection &&
+        typeof selection.start_line === 'number' &&
+        typeof selection.start_column === 'number' &&
+        typeof selection.end_line === 'number' &&
+        typeof selection.end_column === 'number'
+    ) {
+        return {
+            startLine: selection.start_line,
+            startColumn: selection.start_column,
+            endLine: selection.end_line,
+            endColumn: selection.end_column,
+        };
+    }
+    return undefined;
+}
+
 function normalizeParticipant(participant: ParticipantRawPayload): Participant {
     const cursorPosition = participant.cursor_position;
-    const selection = participant.selection;
+    const selection = normalizeSelection(participant.selection);
 
     return {
         id: participant.id ?? participant.participant_id ?? '',
@@ -55,20 +76,7 @@ function normalizeParticipant(participant: ParticipantRawPayload): Participant {
                   },
               }
             : {}),
-        ...(selection &&
-        typeof selection.start_line === 'number' &&
-        typeof selection.start_column === 'number' &&
-        typeof selection.end_line === 'number' &&
-        typeof selection.end_column === 'number'
-            ? {
-                  selection: {
-                      startLine: selection.start_line,
-                      startColumn: selection.start_column,
-                      endLine: selection.end_line,
-                      endColumn: selection.end_column,
-                  },
-              }
-            : {}),
+        ...(selection ? { selection } : {}),
     };
 }
 
@@ -82,8 +90,6 @@ export interface UseWebSocketReturn {
     currentParticipant: Participant | null;
     /** Send a message through the WebSocket */
     sendMessage: (message: Omit<WebSocketMessage, 'timestamp'>) => void;
-    /** Latest received message */
-    lastMessage: WebSocketMessage | null;
     /** Reconnect to the WebSocket */
     reconnect: () => void;
 }
@@ -119,13 +125,14 @@ export function useWebSocket(
     const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
-    const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
 
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const messageQueueRef = useRef<WebSocketMessage[]>([]);
     const reconnectAttemptsRef = useRef(0);
     const shouldReconnectRef = useRef(true);
+    // True once the server's sync_response for the current socket has been applied
+    const isSyncedRef = useRef(false);
 
     // Store callbacks in refs to avoid recreating connect function
     const onCodeUpdateRef = useRef(onCodeUpdate);
@@ -146,7 +153,7 @@ export function useWebSocket(
 
     /**
      * Sends a message through the WebSocket.
-     * Queues messages if not connected.
+     * Queues messages until the connection is open and synced.
      */
     const sendMessage = useCallback(
         (message: Omit<WebSocketMessage, 'timestamp'>) => {
@@ -155,13 +162,15 @@ export function useWebSocket(
                 timestamp: new Date().toISOString(),
             };
 
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                // console.log(`[useWebSocket] Sending:`, message.type);
+            if (wsRef.current?.readyState === WebSocket.OPEN && isSyncedRef.current) {
                 wsRef.current.send(JSON.stringify(fullMessage));
             } else {
-                console.warn('[useWebSocket] Queueing message (not connected). ReadyState:', wsRef.current?.readyState);
-                // Queue message for when connection is restored
-                messageQueueRef.current.push(fullMessage);
+                // Every message type carries complete state (full code, cursor,
+                // language, name), so only the latest message of each type is kept.
+                messageQueueRef.current = [
+                    ...messageQueueRef.current.filter((queued) => queued.type !== fullMessage.type),
+                    fullMessage,
+                ];
             }
         },
         []
@@ -198,6 +207,7 @@ export function useWebSocket(
 
         setConnectionState('connecting');
         shouldReconnectRef.current = true;
+        isSyncedRef.current = false;
 
         const url = getWebSocketUrl(sessionId, {
             participantId: participantIdRef.current,
@@ -206,41 +216,32 @@ export function useWebSocket(
 
         try {
             const ws = new WebSocket(url);
-            // @ts-expect-error - adding debug ID for development
-            ws._debugId = Math.random().toString(36).substring(7);
-
-            // console.log(`[useWebSocket] Created socket for ${url}`);
 
             ws.onopen = () => {
                 // Guard against stale socket events
                 if (ws !== wsRef.current) return;
 
-                // console.log(`[useWebSocket] WebSocket OPEN (ID: ${socketId})`);
                 setConnectionState('connected');
                 reconnectAttemptsRef.current = 0; // Reset reconnect attempts on success
-                flushMessageQueue();
+                // Queued messages are flushed once the server's sync_response arrives
             };
 
             ws.onclose = (event) => {
                 // Guard: Only react if this is the active socket
-                if (ws !== wsRef.current) {
-                    // console.log(`[useWebSocket] Ignoring close event from stale socket (ID: ${socketId})`);
-                    return;
-                }
+                if (ws !== wsRef.current) return;
 
-                // console.log(`[useWebSocket] WebSocket CLOSED (ID: ${socketId}) code=${event.code} reason=${event.reason}`);
                 setConnectionState('disconnected');
                 wsRef.current = null;
 
                 // Don't reconnect if:
                 // - Explicitly disconnected (code 1000)
-                // - Session not found (403 becomes close with specific code)
+                // - Session not found (backend close code 4004)
                 // - shouldReconnect is false
                 // - Max reconnect attempts reached
                 const shouldReconnect =
                     shouldReconnectRef.current &&
                     event.code !== 1000 && // Normal closure
-                    event.code !== 4003 && // Custom: session not found
+                    event.code !== 4004 && // Session not found
                     reconnectAttemptsRef.current < 5;
 
                 if (shouldReconnect) {
@@ -250,6 +251,8 @@ export function useWebSocket(
 
                     reconnectTimeoutRef.current = setTimeout(() => {
                         if (sessionId && shouldReconnectRef.current) {
+                            // Safe self-reference: the timer fires after `connect` is defined
+                            // eslint-disable-next-line react-hooks/immutability
                             connect();
                         }
                     }, delay);
@@ -260,7 +263,6 @@ export function useWebSocket(
                 // Guard against stale socket events
                 if (ws !== wsRef.current) return;
 
-                // console.error(`[useWebSocket] WebSocket ERROR (ID: ${socketId}):`, error);
                 // Error will be followed by close event
                 setConnectionState('error');
             };
@@ -271,7 +273,6 @@ export function useWebSocket(
 
                 try {
                     const message: WebSocketMessage = JSON.parse(event.data);
-                    setLastMessage(message);
 
                     switch (message.type) {
                         case 'sync_response': {
@@ -284,98 +285,57 @@ export function useWebSocket(
                                 participant_color: payload.participant_color,
                             }));
                             setParticipants((payload.participants || []).map((participant) => normalizeParticipant(participant)));
-                            onCodeUpdateRef.current?.(payload.code, payload.language);
+
+                            // Local changes queued while disconnected are newer than this
+                            // snapshot, so keep them instead of overwriting them.
+                            const pendingTypes = new Set(messageQueueRef.current.map((queued) => queued.type));
+                            if (!pendingTypes.has('code_update')) {
+                                onCodeUpdateRef.current?.(payload.code);
+                            }
+                            if (!pendingTypes.has('language_change')) {
+                                onLanguageChangeRef.current?.(payload.language);
+                            }
+
+                            isSyncedRef.current = true;
+                            flushMessageQueue();
                             break;
                         }
 
                         case 'code_update': {
                             const { code, language } = message.payload as { code: string; language?: string };
-                            // console.log('[useWebSocket] Received code_update:', { codeLength: code.length, language });
                             onCodeUpdateRef.current?.(code, language);
                             break;
                         }
 
                         case 'cursor_position': {
-                            const incomingParticipantId =
-                                (message.senderId ?? message.sender_id ?? message.payload.participant_id) as string | undefined;
-                            if (!incomingParticipantId) {
+                            const senderId = message.sender_id;
+                            if (!senderId) {
                                 break;
                             }
 
-                            const line = message.payload.line as number | undefined;
-                            const column = message.payload.column as number | undefined;
-                            const selection = message.payload.selection as {
-                                start_line?: number;
-                                start_column?: number;
-                                end_line?: number;
-                                end_column?: number;
-                            } | null | undefined;
+                            const { line, column } = message.payload;
+                            const rawSelection = message.payload.selection as SelectionRawPayload | null | undefined;
+                            const selection = normalizeSelection(rawSelection);
 
                             setParticipants((prev) =>
                                 prev.map((participant) => {
-                                    if (participant.id !== incomingParticipantId) {
+                                    if (participant.id !== senderId) {
                                         return participant;
                                     }
 
-                                    const nextParticipant: Participant = {
+                                    return {
                                         ...participant,
                                         ...(typeof line === 'number' && typeof column === 'number'
-                                            ? {
-                                                  cursorPosition: { line, column },
-                                              }
+                                            ? { cursorPosition: { line, column } }
                                             : {}),
-                                        ...(selection &&
-                                        typeof selection.start_line === 'number' &&
-                                        typeof selection.start_column === 'number' &&
-                                        typeof selection.end_line === 'number' &&
-                                        typeof selection.end_column === 'number'
-                                            ? {
-                                                  selection: {
-                                                      startLine: selection.start_line,
-                                                      startColumn: selection.start_column,
-                                                      endLine: selection.end_line,
-                                                      endColumn: selection.end_column,
-                                                  },
-                                              }
-                                            : selection === null
+                                        ...(selection
+                                            ? { selection }
+                                            : rawSelection === null
                                               ? { selection: undefined }
                                               : {}),
                                     };
-
-                                    return nextParticipant;
                                 })
                             );
-
-                            if (currentParticipant?.id === incomingParticipantId) {
-                                setCurrentParticipant((prev) =>
-                                    prev
-                                        ? {
-                                              ...prev,
-                                              ...(typeof line === 'number' && typeof column === 'number'
-                                                  ? {
-                                                        cursorPosition: { line, column },
-                                                    }
-                                                  : {}),
-                                              ...(selection &&
-                                              typeof selection.start_line === 'number' &&
-                                              typeof selection.start_column === 'number' &&
-                                              typeof selection.end_line === 'number' &&
-                                              typeof selection.end_column === 'number'
-                                                  ? {
-                                                        selection: {
-                                                            startLine: selection.start_line,
-                                                            startColumn: selection.start_column,
-                                                            endLine: selection.end_line,
-                                                            endColumn: selection.end_column,
-                                                        },
-                                                    }
-                                                  : selection === null
-                                                    ? { selection: undefined }
-                                                    : {}),
-                                          }
-                                        : prev
-                                );
-                            }
                             break;
                         }
 
@@ -392,7 +352,11 @@ export function useWebSocket(
                                 participant_name: message.payload.participant_name as string,
                                 participant_color: message.payload.participant_color as string,
                             });
-                            setParticipants((prev) => [...prev, newParticipant]);
+                            // A participant reconnecting with the same ID replaces its old entry
+                            setParticipants((prev) => [
+                                ...prev.filter((p) => p.id !== newParticipant.id),
+                                newParticipant,
+                            ]);
                             break;
                         }
 
@@ -407,9 +371,9 @@ export function useWebSocket(
                             setParticipants((prev) =>
                                 prev.map((p) => (p.id === participant_id ? { ...p, name } : p))
                             );
-                            if (currentParticipant?.id === participant_id) {
-                                setCurrentParticipant((prev) => (prev ? { ...prev, name } : null));
-                            }
+                            setCurrentParticipant((prev) =>
+                                prev?.id === participant_id ? { ...prev, name } : prev
+                            );
                             break;
                         }
                     }
@@ -423,7 +387,6 @@ export function useWebSocket(
             console.error('Failed to create WebSocket:', err);
             setConnectionState('error');
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId, enabled, flushMessageQueue]);
 
     /**
@@ -461,7 +424,6 @@ export function useWebSocket(
         participants,
         currentParticipant,
         sendMessage,
-        lastMessage,
         reconnect,
     };
 }

@@ -3,10 +3,10 @@
  * @module components/CodeEditor
  */
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import Editor from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
+import type { Monaco } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { cn } from '../lib/utils';
 import type { CursorPosition, SelectionRange } from '../types';
@@ -85,6 +85,9 @@ export function CodeEditor({
     className,
 }: CodeEditorProps): ReactElement {
     const editorRef = useRef<EditorInstance | null>(null);
+    // Monaco instance loaded by @monaco-editor/react (avoids bundling a second copy)
+    const monacoRef = useRef<Monaco | null>(null);
+    const [isEditorReady, setIsEditorReady] = useState(false);
     const cursorDecorationIdsRef = useRef<string[]>([]);
     const selectionDecorationIdsRef = useRef<string[]>([]);
 
@@ -136,7 +139,8 @@ export function CodeEditor({
 
     useEffect(() => {
         const editor = editorRef.current;
-        if (!editor) {
+        const monaco = monacoRef.current;
+        if (!isEditorReady || !editor || !monaco) {
             return;
         }
 
@@ -178,39 +182,36 @@ export function CodeEditor({
             selectionDecorationIdsRef.current,
             selectionDecorations,
         );
-    }, [remoteCursors, remoteSelections]);
+    }, [isEditorReady, remoteCursors, remoteSelections]);
 
     /**
      * Handles editor mount event.
      * @param editor - Monaco editor instance
+     * @param monaco - Monaco API instance
      */
     const handleEditorDidMount = useCallback(
-        (editor: EditorInstance) => {
+        (editor: EditorInstance, monaco: Monaco) => {
             editorRef.current = editor;
+            monacoRef.current = monaco;
 
-            if (typeof editor.onDidChangeCursorSelection === 'function') {
-                editor.onDidChangeCursorSelection((event) => {
-                    const position = event.selection.getPosition();
-                    const selection = event.selection.isEmpty()
-                        ? null
-                        : {
-                              startLine: event.selection.startLineNumber,
-                              startColumn: event.selection.startColumn,
-                              endLine: event.selection.endLineNumber,
-                              endColumn: event.selection.endColumn,
-                          };
+            editor.onDidChangeCursorSelection((event) => {
+                const position = event.selection.getPosition();
+                const selection = event.selection.isEmpty()
+                    ? null
+                    : {
+                          startLine: event.selection.startLineNumber,
+                          startColumn: event.selection.startColumn,
+                          endLine: event.selection.endLineNumber,
+                          endColumn: event.selection.endColumn,
+                      };
 
-                    onCursorChange?.(position.lineNumber, position.column);
-                    onSelectionChange?.(selection, position.lineNumber, position.column);
-                });
-            } else if (typeof editor.onDidChangeCursorPosition === 'function') {
-                editor.onDidChangeCursorPosition((event) => {
-                    onCursorChange?.(event.position.lineNumber, event.position.column);
-                    onSelectionChange?.(null, event.position.lineNumber, event.position.column);
-                });
-            }
+                onCursorChange?.(position.lineNumber, position.column);
+                onSelectionChange?.(selection, position.lineNumber, position.column);
+            });
 
             editor.focus();
+            // Apply remote presence that arrived before the editor finished loading
+            setIsEditorReady(true);
         },
         [onCursorChange, onSelectionChange]
     );

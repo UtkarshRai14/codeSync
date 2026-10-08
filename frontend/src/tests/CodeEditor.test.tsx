@@ -18,7 +18,7 @@ vi.mock('@monaco-editor/react', () => ({
         if (onMount) {
             const mockEditor = {
                 focus: vi.fn(),
-                onDidChangeCursorPosition: vi.fn(),
+                onDidChangeCursorSelection: vi.fn(),
             };
             setTimeout(() => onMount(mockEditor), 0);
         }
