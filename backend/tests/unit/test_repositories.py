@@ -64,9 +64,7 @@ class TestMockSessionRepository:
         assert updated.code == "modified"
         assert updated.updated_at > session.created_at
 
-    async def test_update_code_and_language(
-        self, repo: MockSessionRepository
-    ) -> None:
+    async def test_update_code_and_language(self, repo: MockSessionRepository) -> None:
         """Test updating both code and language."""
         session = await repo.create(SessionCreate(language="python"))
 
@@ -88,9 +86,7 @@ class TestMockSessionRepository:
         """Test adding a participant to a session."""
         session = await repo.create(SessionCreate())
 
-        updated = await repo.add_participant(
-            session.id, "user1", "Alice", "#ff0000"
-        )
+        updated = await repo.add_participant(session.id, "user1", "Alice", "#ff0000")
 
         assert updated is not None
         assert len(updated.participants) == 1
@@ -98,9 +94,7 @@ class TestMockSessionRepository:
         assert updated.participants[0].name == "Alice"
         assert updated.participants[0].color == "#ff0000"
 
-    async def test_add_duplicate_participant(
-        self, repo: MockSessionRepository
-    ) -> None:
+    async def test_add_duplicate_participant(self, repo: MockSessionRepository) -> None:
         """Test that adding duplicate participant is idempotent."""
         session = await repo.create(SessionCreate())
         await repo.add_participant(session.id, "user1", "Alice", "#ff0000")
@@ -110,9 +104,7 @@ class TestMockSessionRepository:
         assert updated is not None
         assert len(updated.participants) == 1
 
-    async def test_add_multiple_participants(
-        self, repo: MockSessionRepository
-    ) -> None:
+    async def test_add_multiple_participants(self, repo: MockSessionRepository) -> None:
         """Test adding multiple participants."""
         session = await repo.create(SessionCreate())
         await repo.add_participant(session.id, "user1", "Alice", "#ff0000")

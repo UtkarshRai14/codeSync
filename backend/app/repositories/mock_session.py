@@ -185,7 +185,6 @@ class MockSessionRepository(SessionRepository):
         self._sessions[session_id] = updated
         return updated
 
-
     async def delete(self, session_id: str) -> bool:
         """Delete a session from storage.
 

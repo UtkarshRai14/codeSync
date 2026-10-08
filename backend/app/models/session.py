@@ -5,20 +5,21 @@ following the Single Responsibility Principle.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """Types of WebSocket messages for real-time communication.
 
     Attributes:
         CODE_UPDATE: Code content has been modified.
-        CURSOR_POSITION: User cursor position changed.
+        CURSOR_POSITION: User cursor position or selection changed.
         USER_JOINED: New user connected to session.
         USER_LEFT: User disconnected from session.
         LANGUAGE_CHANGE: Programming language was changed.
+        NAME_CHANGE: User changed their display name.
         SYNC_REQUEST: Client requesting full state sync.
         SYNC_RESPONSE: Server sending full state.
     """
@@ -63,18 +64,6 @@ class SessionCreate(BaseModel):
     code: str = ""
 
 
-class SessionUpdate(BaseModel):
-    """Request model for updating session code.
-
-    Attributes:
-        code: Updated code content.
-        language: Optional language change.
-    """
-
-    code: str | None = None
-    language: str | None = None
-
-
 class Session(BaseModel):
     """Represents an interview coding session.
 
@@ -93,19 +82,3 @@ class Session(BaseModel):
     participants: list[Participant] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-
-
-class WebSocketMessage(BaseModel):
-    """WebSocket message structure for real-time communication.
-
-    Attributes:
-        type: Message type indicating the action.
-        payload: Message data specific to the type.
-        sender_id: ID of the participant who sent the message.
-        timestamp: When the message was created.
-    """
-
-    type: MessageType
-    payload: dict = Field(default_factory=dict)
-    sender_id: str | None = None
-    timestamp: datetime = Field(default_factory=datetime.now)

@@ -76,12 +76,14 @@ class TestFullSessionLifecycle:
             # Note: In a real scenario, this would be a separate browser
 
             # Step 4: Interviewer sends code update
-            interviewer_ws.send_json({
-                "type": MessageType.CODE_UPDATE.value,
-                "payload": {
-                    "code": "# Interview Question\ndef solution():\n    pass\n",
-                },
-            })
+            interviewer_ws.send_json(
+                {
+                    "type": MessageType.CODE_UPDATE.value,
+                    "payload": {
+                        "code": "# Interview Question\ndef solution():\n    pass\n",
+                    },
+                }
+            )
 
         # Verify code was persisted
         verify_response = await client.get(f"/api/sessions/{session_id}")
@@ -110,10 +112,12 @@ class TestFullSessionLifecycle:
             _participant1_id = sync1["payload"]["participant_id"]
 
             # First participant sends code
-            ws1.send_json({
-                "type": MessageType.CODE_UPDATE.value,
-                "payload": {"code": "function hello() {}"},
-            })
+            ws1.send_json(
+                {
+                    "type": MessageType.CODE_UPDATE.value,
+                    "payload": {"code": "function hello() {}"},
+                }
+            )
 
         # Verify the code was saved
         get_response = await client.get(f"/api/sessions/{session_id}")
@@ -134,10 +138,12 @@ class TestFullSessionLifecycle:
             ws.receive_json()  # Initial sync
 
             # Change to JavaScript
-            ws.send_json({
-                "type": MessageType.LANGUAGE_CHANGE.value,
-                "payload": {"language": "javascript"},
-            })
+            ws.send_json(
+                {
+                    "type": MessageType.LANGUAGE_CHANGE.value,
+                    "payload": {"language": "javascript"},
+                }
+            )
 
         # Verify language change was persisted
         get_response = await client.get(f"/api/sessions/{session_id}")
@@ -222,12 +228,16 @@ class TestConcurrentConnections:
     async def test_multiple_sessions_isolation(self, client: AsyncClient) -> None:
         """Test that multiple sessions are properly isolated."""
         # Create two separate sessions
-        session1 = (await client.post(
-            "/api/sessions", json={"language": "python", "code": "session1"}
-        )).json()
-        session2 = (await client.post(
-            "/api/sessions", json={"language": "javascript", "code": "session2"}
-        )).json()
+        session1 = (
+            await client.post(
+                "/api/sessions", json={"language": "python", "code": "session1"}
+            )
+        ).json()
+        session2 = (
+            await client.post(
+                "/api/sessions", json={"language": "javascript", "code": "session2"}
+            )
+        ).json()
 
         # Verify they have different IDs
         assert session1["id"] != session2["id"]

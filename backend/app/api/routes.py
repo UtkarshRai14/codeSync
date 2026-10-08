@@ -8,22 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.api.dependencies import get_session_service
-from app.models.session import Session
+from app.models.session import Session, SessionCreate
 from app.services.session_service import SessionService
 
 router = APIRouter(prefix="/api", tags=["sessions"])
-
-
-class SessionCreateRequest(BaseModel):
-    """Request body for creating a new session.
-
-    Attributes:
-        language: Programming language for the session.
-        code: Initial code content.
-    """
-
-    language: str = "python"
-    code: str = ""
 
 
 class SessionResponse(BaseModel):
@@ -74,7 +62,7 @@ def _session_to_response(session: Session, base_url: str = "") -> SessionRespons
     ),
 )
 async def create_session(
-    request: SessionCreateRequest,
+    request: SessionCreate,
     service: SessionService = Depends(get_session_service),
 ) -> SessionResponse:
     """Create a new interview session.

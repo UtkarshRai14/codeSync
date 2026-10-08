@@ -26,9 +26,7 @@ class SessionService:
         """
         self._repository = repository
 
-    async def create_session(
-        self, language: str = "python", code: str = ""
-    ) -> Session:
+    async def create_session(self, language: str = "python", code: str = "") -> Session:
         """Create a new interview session.
 
         Args:

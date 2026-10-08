@@ -35,7 +35,7 @@ addopts = "-v --cov=app --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "D", "I", "N", "W", "UP", "B", "A", "C4", "RUF"]

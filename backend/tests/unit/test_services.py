@@ -47,9 +47,7 @@ class TestSessionService:
         )
         mock_repository.create = AsyncMock(return_value=expected_session)
 
-        result = await service.create_session(
-            language="javascript", code="let x = 1;"
-        )
+        result = await service.create_session(language="javascript", code="let x = 1;")
 
         call_args = mock_repository.create.call_args[0][0]
         assert call_args.language == "javascript"
@@ -101,9 +99,7 @@ class TestSessionService:
 
         result = await service.update_session_code("test", "fn main()", "rust")
 
-        mock_repository.update_code.assert_called_once_with(
-            "test", "fn main()", "rust"
-        )
+        mock_repository.update_code.assert_called_once_with("test", "fn main()", "rust")
         assert result == updated_session
 
     async def test_add_participant(
@@ -112,9 +108,7 @@ class TestSessionService:
         """Test adding a participant."""
         mock_repository.add_participant = AsyncMock(return_value=Session(id="test"))
 
-        result = await service.add_participant(
-            "test", "user1", "Alice", "#ff0000"
-        )
+        result = await service.add_participant("test", "user1", "Alice", "#ff0000")
 
         mock_repository.add_participant.assert_called_once_with(
             "test", "user1", "Alice", "#ff0000"
@@ -137,9 +131,7 @@ class TestSessionService:
         self, service: SessionService, mock_repository: MagicMock
     ) -> None:
         """Test removing a participant."""
-        mock_repository.remove_participant = AsyncMock(
-            return_value=Session(id="test")
-        )
+        mock_repository.remove_participant = AsyncMock(return_value=Session(id="test"))
 
         result = await service.remove_participant("test", "user1")
 

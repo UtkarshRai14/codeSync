@@ -5,8 +5,6 @@ from app.models.session import (
     Participant,
     Session,
     SessionCreate,
-    SessionUpdate,
-    WebSocketMessage,
 )
 
 __all__ = [
@@ -14,6 +12,4 @@ __all__ = [
     "Participant",
     "Session",
     "SessionCreate",
-    "SessionUpdate",
-    "WebSocketMessage",
 ]

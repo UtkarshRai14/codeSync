@@ -18,7 +18,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SessionCreateRequest"
+                "$ref": "#/components/schemas/SessionCreate"
               }
             }
           },
@@ -167,7 +167,7 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "SessionCreateRequest": {
+      "SessionCreate": {
         "properties": {
           "language": {
             "type": "string",
@@ -181,8 +181,8 @@
           }
         },
         "type": "object",
-        "title": "SessionCreateRequest",
-        "description": "Request body for creating a new session.\n\nAttributes:\n    language: Programming language for the session.\n    code: Initial code content."
+        "title": "SessionCreate",
+        "description": "Request model for creating a new session.\n\nAttributes:\n    language: Initial programming language for syntax highlighting.\n    code: Initial code content."
       },
       "SessionResponse": {
         "properties": {

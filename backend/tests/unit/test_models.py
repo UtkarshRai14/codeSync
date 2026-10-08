@@ -7,8 +7,6 @@ from app.models.session import (
     Participant,
     Session,
     SessionCreate,
-    SessionUpdate,
-    WebSocketMessage,
 )
 
 
@@ -57,31 +55,6 @@ class TestSessionCreate:
         assert request.code == "console.log('hello');"
 
 
-class TestSessionUpdate:
-    """Tests for the SessionUpdate model."""
-
-    def test_update_code_only(self) -> None:
-        """Test updating only the code."""
-        update = SessionUpdate(code="print('updated')")
-
-        assert update.code == "print('updated')"
-        assert update.language is None
-
-    def test_update_language_only(self) -> None:
-        """Test updating only the language."""
-        update = SessionUpdate(language="rust")
-
-        assert update.code is None
-        assert update.language == "rust"
-
-    def test_update_both(self) -> None:
-        """Test updating both code and language."""
-        update = SessionUpdate(code="fn main() {}", language="rust")
-
-        assert update.code == "fn main() {}"
-        assert update.language == "rust"
-
-
 class TestSession:
     """Tests for the Session model."""
 
@@ -127,32 +100,8 @@ class TestSession:
         assert session.id == updated.id
 
 
-class TestWebSocketMessage:
-    """Tests for the WebSocketMessage model."""
-
-    def test_create_code_update_message(self) -> None:
-        """Test creating a code update message."""
-        message = WebSocketMessage(
-            type=MessageType.CODE_UPDATE,
-            payload={"code": "print('hello')"},
-            sender_id="user123",
-        )
-
-        assert message.type == MessageType.CODE_UPDATE
-        assert message.payload == {"code": "print('hello')"}
-        assert message.sender_id == "user123"
-        assert isinstance(message.timestamp, datetime)
-
-    def test_create_user_joined_message(self) -> None:
-        """Test creating a user joined message."""
-        message = WebSocketMessage(
-            type=MessageType.USER_JOINED,
-            payload={"participant_name": "Alice"},
-        )
-
-        assert message.type == MessageType.USER_JOINED
-        assert message.payload["participant_name"] == "Alice"
-        assert message.sender_id is None
+class TestMessageType:
+    """Tests for the MessageType enum."""
 
     def test_message_type_values(self) -> None:
         """Test that message types have correct string values."""
@@ -161,5 +110,6 @@ class TestWebSocketMessage:
         assert MessageType.USER_JOINED.value == "user_joined"
         assert MessageType.USER_LEFT.value == "user_left"
         assert MessageType.LANGUAGE_CHANGE.value == "language_change"
+        assert MessageType.NAME_CHANGE.value == "name_change"
         assert MessageType.SYNC_REQUEST.value == "sync_request"
         assert MessageType.SYNC_RESPONSE.value == "sync_response"
