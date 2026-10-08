@@ -1,10 +1,12 @@
 """Integration tests for REST API endpoints."""
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api.dependencies import get_connection_manager, get_repository
-from app.main import app
+from app.main import app, resolve_static_file
 
 
 class TestSessionAPI:
@@ -40,9 +42,7 @@ class TestSessionAPI:
         assert data["participant_count"] == 0
         assert "share_url" in data
 
-    async def test_create_session_default_values(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_create_session_default_values(self, client: AsyncClient) -> None:
         """Test creating a session with default values."""
         response = await client.post("/api/sessions", json={})
 
@@ -138,6 +138,37 @@ class TestSecurityHeaders:
         assert response.headers.get("X-Frame-Options") == "DENY"
         assert response.headers.get("X-XSS-Protection") == "1; mode=block"
         assert "strict-origin" in response.headers.get("Referrer-Policy", "")
+
+
+class TestStaticFileResolution:
+    """Tests for safely resolving files of the built frontend."""
+
+    def test_resolves_file_inside_static_dir(self, tmp_path: Path) -> None:
+        """Test that existing files inside the static directory are served."""
+        static_dir = tmp_path.resolve()
+        (static_dir / "favicon.png").write_bytes(b"icon")
+
+        assert resolve_static_file(static_dir, "favicon.png") == (
+            static_dir / "favicon.png"
+        )
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        """Test that unknown paths fall through to the SPA entry point."""
+        assert resolve_static_file(tmp_path.resolve(), "session/abc123") is None
+
+    def test_null_byte_returns_none(self, tmp_path: Path) -> None:
+        """Test that a null byte in the path is treated as not found."""
+        assert resolve_static_file(tmp_path.resolve(), "index\x00.html") is None
+
+    def test_rejects_paths_outside_static_dir(self, tmp_path: Path) -> None:
+        """Test that path traversal and absolute paths are rejected."""
+        static_dir = tmp_path.resolve() / "static"
+        static_dir.mkdir()
+        secret = tmp_path.resolve() / "secret.txt"
+        secret.write_text("secret")
+
+        assert resolve_static_file(static_dir, "../secret.txt") is None
+        assert resolve_static_file(static_dir, str(secret)) is None
 
 
 class TestAPIValidation:

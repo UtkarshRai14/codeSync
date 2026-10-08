@@ -1,11 +1,14 @@
 """Integration tests for WebSocket identity persistence."""
 
+from urllib.parse import quote
+
 import pytest
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from app.api.dependencies import get_connection_manager, get_repository
 from app.main import app
+from app.websocket.handler import PARTICIPANT_ID_PATTERN
 
 
 class TestWebSocketIdentity:
@@ -63,6 +66,22 @@ class TestWebSocketIdentity:
             payload = data["payload"]
 
             assert payload["participant_id"] == custom_id
+
+    async def test_malformed_participant_id_is_replaced(
+        self, sync_client: TestClient, async_client: AsyncClient
+    ) -> None:
+        """Test that unsafe participant IDs are replaced with generated ones."""
+        response = await async_client.post("/api/sessions", json={})
+        session_id = response.json()["id"]
+
+        unsafe_id = "x{}body{display:none}"
+        url = f"/ws/{session_id}?participant_id={quote(unsafe_id)}"
+
+        with sync_client.websocket_connect(url) as websocket:
+            payload = websocket.receive_json()["payload"]
+
+            assert payload["participant_id"] != unsafe_id
+            assert PARTICIPANT_ID_PATTERN.fullmatch(payload["participant_id"])
 
     async def test_resume_session_identity(
         self, sync_client: TestClient, async_client: AsyncClient

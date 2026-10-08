@@ -7,9 +7,12 @@ and mounts API routes and WebSocket endpoints.
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.config import settings
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan handler for startup and shutdown events.
 
     Args:
@@ -104,28 +107,33 @@ async def health_check() -> dict[str, str]:
     return {"status": "healthy"}
 
 
-# Mount static files (SPA)
-import os
+def resolve_static_file(static_dir: Path, requested_path: str) -> Path | None:
+    """Resolve a requested path to a file inside the static directory.
 
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+    Args:
+        static_dir: Resolved root directory of the built frontend.
+        requested_path: URL path requested by the client.
 
-# Only mount if static directory exists (production/docker)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.isdir(static_dir):
-    # Mount assets (JS/CSS/Images)
-    assets_dir = os.path.join(static_dir, "assets")
-    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    Returns:
+        The file path if it exists inside ``static_dir``, otherwise None.
+        Paths escaping the directory (e.g. ``../`` or absolute) are rejected.
+    """
+    try:
+        file_path = (static_dir / requested_path).resolve()
+    except ValueError:  # e.g. an embedded null byte
+        return None
+    if file_path.is_relative_to(static_dir) and file_path.is_file():
+        return file_path
+    return None
 
-    # Serve index.html for all other routes (SPA fallback)
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """Serve SPA frontend for all non-API routes."""
-        # Allow API and WebSocket to pass through (handled above)
-        # Note: If a file exists in root of static (e.g. favicon.ico), serve it
-        file_path = os.path.join(static_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
 
-        # Fallback to index.html
-        return FileResponse(os.path.join(static_dir, "index.html"))
+# Serve the built frontend (SPA) when present (production/Docker image)
+STATIC_DIR = (Path(__file__).parent / "static").resolve()
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str) -> FileResponse:
+        """Serve a static file if it exists, otherwise the SPA entry point."""
+        file_path = resolve_static_file(STATIC_DIR, full_path)
+        return FileResponse(file_path or STATIC_DIR / "index.html")

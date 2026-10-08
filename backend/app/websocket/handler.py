@@ -6,7 +6,9 @@ code editing sessions.
 
 import json
 import logging
+import re
 import uuid
+import zlib
 from datetime import datetime
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -28,8 +30,9 @@ PARTICIPANT_COLORS = [
     "#f97316",  # Orange
 ]
 
-
-import zlib
+# Client-supplied participant IDs are echoed to other clients (and used in
+# their CSS class names), so only allow a safe character set.
+PARTICIPANT_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def _get_participant_color(participant_id: str) -> str:
@@ -46,28 +49,21 @@ def _get_participant_color(participant_id: str) -> str:
     return PARTICIPANT_COLORS[hash_val % len(PARTICIPANT_COLORS)]
 
 
-async def websocket_endpoint(
-    websocket: WebSocket,
-    session_id: str,
-    participant_id: str | None = None,
-    name: str | None = None,
-) -> None:
+async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
     """Handle WebSocket connections for a coding session.
+
+    The optional ``participant_id`` and ``name`` query parameters let a client
+    resume its identity across reconnects.
 
     Args:
         websocket: The WebSocket connection.
         session_id: ID of the session to join.
-        participant_id: Optional existing participant ID.
-        name: Optional display name.
     """
     manager = get_connection_manager()
     service = get_session_service()
 
-    # Manual retrieval fallback (useful for testing or if injection fails)
-    if participant_id is None:
-        participant_id = websocket.query_params.get("participant_id")
-    if name is None:
-        name = websocket.query_params.get("name")
+    participant_id = websocket.query_params.get("participant_id")
+    name = websocket.query_params.get("name")
 
     # Validate session exists
     session = await service.get_session(session_id)
@@ -75,29 +71,25 @@ async def websocket_endpoint(
         await websocket.close(code=4004, reason="Session not found")
         return
 
-    # Generate or reuse participant ID
-    if not participant_id:
+    # Reuse a well-formed participant ID, otherwise generate a new one
+    if not participant_id or not PARTICIPANT_ID_PATTERN.fullmatch(participant_id):
         participant_id = str(uuid.uuid4())[:8]
 
     # Check if participant already exists in session
     # (unlikely if they disconnected, but good for active checks)
-    existing_participant = None
-    if session and session.participants:
-        for p in session.participants:
-            if p.id == participant_id:
-                existing_participant = p
-                break
+    existing_participant = next(
+        (p for p in session.participants if p.id == participant_id), None
+    )
 
     # Assign deterministic color
     participant_color = _get_participant_color(participant_id)
 
-    if not name:
-        if existing_participant:
-             participant_name = existing_participant.name
-        else:
-             participant_name = f"User {str(participant_id)[:4]}"
-    else:
+    if name:
         participant_name = name
+    elif existing_participant:
+        participant_name = existing_participant.name
+    else:
+        participant_name = f"User {participant_id[:4]}"
 
     await manager.connect(websocket, session_id, participant_id)
 
@@ -124,14 +116,14 @@ async def websocket_endpoint(
                     "participant_name": participant_name,
                     "participant_color": participant_color,
                     "participants": [
-                    {
-                        "id": p.id,
-                        "name": p.name,
-                        "color": p.color,
-                        "cursor_position": p.cursor_position,
-                        "selection": p.selection,
-                    }
-                    for p in session.participants
+                        {
+                            "id": p.id,
+                            "name": p.name,
+                            "color": p.color,
+                            "cursor_position": p.cursor_position,
+                            "selection": p.selection,
+                        }
+                        for p in session.participants
                     ],
                 },
                 "timestamp": datetime.now().isoformat(),
@@ -276,8 +268,9 @@ async def websocket_endpoint(
                     )
 
     except WebSocketDisconnect:
-        logger.info("Participant %s disconnected from session %s",
-                    participant_id, session_id)
+        logger.info(
+            "Participant %s disconnected from session %s", participant_id, session_id
+        )
     except Exception as e:
         logger.error("WebSocket error for participant %s: %s", participant_id, e)
     finally:

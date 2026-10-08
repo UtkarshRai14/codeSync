@@ -109,10 +109,12 @@ class TestWebSocketMessaging:
             websocket.receive_json()
 
             # Send code update
-            websocket.send_json({
-                "type": MessageType.CODE_UPDATE.value,
-                "payload": {"code": "print('updated')"},
-            })
+            websocket.send_json(
+                {
+                    "type": MessageType.CODE_UPDATE.value,
+                    "payload": {"code": "print('updated')"},
+                }
+            )
 
         # Verify code was persisted
         get_response = await async_client.get(f"/api/sessions/{session_id}")
@@ -122,18 +124,18 @@ class TestWebSocketMessaging:
         self, sync_client: TestClient, async_client: AsyncClient
     ) -> None:
         """Test that language changes are persisted."""
-        response = await async_client.post(
-            "/api/sessions", json={"language": "python"}
-        )
+        response = await async_client.post("/api/sessions", json={"language": "python"})
         session_id = response.json()["id"]
 
         with sync_client.websocket_connect(f"/ws/{session_id}") as websocket:
             websocket.receive_json()
 
-            websocket.send_json({
-                "type": MessageType.LANGUAGE_CHANGE.value,
-                "payload": {"language": "javascript"},
-            })
+            websocket.send_json(
+                {
+                    "type": MessageType.LANGUAGE_CHANGE.value,
+                    "payload": {"language": "javascript"},
+                }
+            )
 
         get_response = await async_client.get(f"/api/sessions/{session_id}")
         assert get_response.json()["language"] == "javascript"
@@ -146,15 +148,17 @@ class TestWebSocketMessaging:
         session_id = response.json()["id"]
 
         with sync_client.websocket_connect(f"/ws/{session_id}") as websocket:
-            initial = websocket.receive_json() # Initial sync
+            initial = websocket.receive_json()  # Initial sync
             my_id = initial["payload"]["participant_id"]
 
             # Send name change
             new_name = "New Name"
-            websocket.send_json({
-                "type": MessageType.NAME_CHANGE.value,
-                "payload": {"name": new_name},
-            })
+            websocket.send_json(
+                {
+                    "type": MessageType.NAME_CHANGE.value,
+                    "payload": {"name": new_name},
+                }
+            )
 
             # Receive broadcast (sender also receives it)
             response = websocket.receive_json()
@@ -162,9 +166,11 @@ class TestWebSocketMessaging:
             assert response["payload"]["name"] == new_name
 
             # Verify persistence via SYNC_REQUEST
-            websocket.send_json({
-                "type": MessageType.SYNC_REQUEST.value,
-            })
+            websocket.send_json(
+                {
+                    "type": MessageType.SYNC_REQUEST.value,
+                }
+            )
 
             # Should receive SYNC_RESPONSE
             response = websocket.receive_json()
@@ -224,6 +230,7 @@ class TestConnectionManager:
     def manager(self):
         """Provide a fresh ConnectionManager."""
         from app.websocket.manager import ConnectionManager
+
         return ConnectionManager()
 
     def test_get_participant_count_empty(self, manager) -> None:
@@ -255,3 +262,29 @@ class TestConnectionManager:
         assert manager.active_connections["session"]["user1"] is websocket2
         assert manager.disconnect("session", "user1", websocket2) is True
         assert manager.get_participant_count("session") == 0
+
+    async def test_broadcast_survives_participant_joining_mid_send(
+        self, manager
+    ) -> None:
+        """A participant joining while a broadcast is awaiting must not break it."""
+        from unittest.mock import AsyncMock
+
+        late_joiner = type("WebSocketStub", (), {"accept": AsyncMock()})()
+
+        async def send_and_trigger_join(_message: str) -> None:
+            await manager.connect(late_joiner, "session", "late")
+
+        websocket = type(
+            "WebSocketStub",
+            (),
+            {
+                "accept": AsyncMock(),
+                "send_text": AsyncMock(side_effect=send_and_trigger_join),
+            },
+        )()
+        await manager.connect(websocket, "session", "user1")
+
+        await manager.broadcast("session", {"type": "code_update"})
+
+        websocket.send_text.assert_awaited_once()
+        assert manager.get_session_participants("session") == ["user1", "late"]

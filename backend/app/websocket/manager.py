@@ -93,7 +93,9 @@ class ConnectionManager:
         message_json = json.dumps(message, default=str)
         disconnected: list[tuple[str, WebSocket]] = []
 
-        for participant_id, websocket in self.active_connections[session_id].items():
+        # Iterate over a snapshot: participants may join or leave while awaiting sends
+        connections = list(self.active_connections[session_id].items())
+        for participant_id, websocket in connections:
             if participant_id == exclude_participant:
                 continue
 
