@@ -169,7 +169,7 @@ export function Home(): ReactElement {
                                 <form onSubmit={handleCreateSession} className="space-y-4 py-4">
                                     <div className="space-y-4">
                                         <Input
-                                            placeholder="Your Name (Optional)"
+                                            placeholder="Your Name (Required)"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             className="bg-zinc-950 border-zinc-800 focus-visible:ring-blue-500 text-zinc-100 placeholder:text-zinc-600"
@@ -342,7 +342,7 @@ export function Home(): ReactElement {
                             {
                                 icon: Zap,
                                 title: "Instant Execution",
-                                desc: "Run Python and JavaScript code instantly in the browser with our secure, sandboxed execution engine."
+                                desc: "Run Python and JavaScript code instantly, right in the browser. Nothing is executed on our servers."
                             },
                             {
                                 icon: Users,
@@ -383,7 +383,7 @@ export function Home(): ReactElement {
                                     "VS Code like experience",
                                     "Multiple language support (Python, JS)",
                                     "Integrated terminal output",
-                                    "Customizable editor themes",
+                                    "Live collaborator cursors and selections",
                                     "Secure room generation"
                                 ].map((item, i) => (
                                     <div key={i} className="flex items-center gap-3">
@@ -446,13 +446,13 @@ export function Home(): ReactElement {
                         <AccordionItem value="item-3" className="border-zinc-800">
                             <AccordionTrigger className="text-lg hover:no-underline">Do I need to sign up?</AccordionTrigger>
                             <AccordionContent className="text-zinc-400 text-base">
-                                No! You can start a session instantly without creating an account. Just click "Create New Session" and share the URL.
+                                No! You can start a session instantly without creating an account. Just click "Create Session" and share the URL.
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="item-4" className="border-zinc-800">
                             <AccordionTrigger className="text-lg hover:no-underline">Is the code execution secure?</AccordionTrigger>
                             <AccordionContent className="text-zinc-400 text-base">
-                                Absolutely. We use WebAssembly (Pyodide) and Web Workers for sandboxed execution, ensuring no malicious code can damage your system.
+                                Code runs entirely in your own browser (Python via WebAssembly with Pyodide), so nothing you run is ever executed on our servers.
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>

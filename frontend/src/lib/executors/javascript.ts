@@ -1,5 +1,5 @@
 /**
- * JavaScript code executor using sandboxed Function constructor.
+ * JavaScript code executor using the Function constructor.
  * @module lib/executors/javascript
  */
 
@@ -8,8 +8,9 @@ import type { CodeExecutor } from './base';
 import { DEFAULT_TIMEOUT, createTimeoutPromise } from './base';
 
 /**
- * JavaScript code executor that runs code in a sandboxed environment.
- * Uses Function constructor with limited global scope for security.
+ * JavaScript code executor that captures console output.
+ * Code runs on the page's main thread via the Function constructor; only
+ * `console` is replaced, other browser globals remain accessible.
  */
 export class JavaScriptExecutor implements CodeExecutor {
     readonly language = 'javascript';
