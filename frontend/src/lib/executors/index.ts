@@ -4,6 +4,7 @@
  * @module lib/executors
  */
 
+import { EXECUTABLE_LANGUAGES } from '../../types';
 import type { ExecutionResult } from '../../types';
 import type { CodeExecutor } from './base';
 import { JavaScriptExecutor } from './javascript';
@@ -49,7 +50,7 @@ export function getExecutor(language: string): CodeExecutor | null {
  * @returns True if execution is supported
  */
 export function isExecutable(language: string): boolean {
-    return language === 'python' || language === 'javascript';
+    return (EXECUTABLE_LANGUAGES as readonly string[]).includes(language);
 }
 
 /**

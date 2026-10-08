@@ -2,7 +2,7 @@
  * Tests for utility functions.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { cn, generateRandomColor, copyToClipboard, debounce, formatDate } from '../lib/utils';
+import { cn, copyToClipboard, debounce } from '../lib/utils';
 
 describe('cn', () => {
     it('merges class names correctly', () => {
@@ -20,21 +20,6 @@ describe('cn', () => {
     it('handles undefined values', () => {
         const result = cn('base', undefined, null, 'active');
         expect(result).toBe('base active');
-    });
-});
-
-describe('generateRandomColor', () => {
-    it('returns a valid hex color', () => {
-        const color = generateRandomColor();
-        expect(color).toMatch(/^#[0-9a-f]{6}$/i);
-    });
-
-    it('returns different colors on multiple calls', () => {
-        const colors = new Set();
-        for (let i = 0; i < 100; i++) {
-            colors.add(generateRandomColor());
-        }
-        expect(colors.size).toBeGreaterThan(1);
     });
 });
 
@@ -68,18 +53,5 @@ describe('debounce', () => {
         expect(fn).toHaveBeenCalledWith('c');
 
         vi.useRealTimers();
-    });
-});
-
-describe('formatDate', () => {
-    it('formats date string correctly', () => {
-        const result = formatDate('2024-01-15T10:30:00Z');
-        expect(result).toMatch(/\d{1,2}:\d{2}/);
-    });
-
-    it('formats Date object correctly', () => {
-        const date = new Date('2024-01-15T10:30:00Z');
-        const result = formatDate(date);
-        expect(result).toMatch(/\d{1,2}:\d{2}/);
     });
 });

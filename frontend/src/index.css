@@ -56,11 +56,6 @@ body {
   background: rgb(82 82 91);
 }
 
-/* Gradient radial utility */
-.bg-gradient-radial {
-  background: radial-gradient(circle, var(--tw-gradient-stops));
-}
-
 /* Focus outline */
 *:focus-visible {
   outline: 2px solid rgb(var(--ring));

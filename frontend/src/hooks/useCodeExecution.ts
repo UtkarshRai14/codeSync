@@ -15,8 +15,6 @@ export interface UseCodeExecutionReturn {
     result: ExecutionResult | null;
     /** Whether the current language supports execution */
     isSupported: boolean;
-    /** Whether the runtime is loading */
-    isLoading: boolean;
     /** Execute code */
     execute: (code: string) => Promise<ExecutionResult>;
     /** Clear the result */
@@ -32,7 +30,6 @@ export interface UseCodeExecutionReturn {
  */
 export function useCodeExecution(language: string): UseCodeExecutionReturn {
     const [isExecuting, setIsExecuting] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<ExecutionResult | null>(null);
 
     const isSupported = isExecutable(language);
@@ -56,7 +53,6 @@ export function useCodeExecution(language: string): UseCodeExecutionReturn {
             }
 
             setIsExecuting(true);
-            setIsLoading(true);
 
             try {
                 const executionResult = await executeCode(language, code);
@@ -73,7 +69,6 @@ export function useCodeExecution(language: string): UseCodeExecutionReturn {
                 return errorResult;
             } finally {
                 setIsExecuting(false);
-                setIsLoading(false);
             }
         },
         [language, isSupported]
@@ -90,7 +85,6 @@ export function useCodeExecution(language: string): UseCodeExecutionReturn {
         isExecuting,
         result,
         isSupported,
-        isLoading,
         execute,
         clearResult,
     };

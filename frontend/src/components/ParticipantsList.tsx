@@ -37,7 +37,7 @@ export function ParticipantsList({
 
     // Combine current user with other participants
     // Deduplicate participants from props first
-    const uniqueParticipantsMap = new Map();
+    const uniqueParticipantsMap = new Map<string, Participant>();
     participants.forEach(p => uniqueParticipantsMap.set(p.id, p));
 
     if (currentParticipant) {
@@ -47,7 +47,7 @@ export function ParticipantsList({
     const otherParticipants = Array.from(uniqueParticipantsMap.values());
     const allParticipants = currentParticipant
         ? [currentParticipant, ...otherParticipants]
-        : Array.from(uniqueParticipantsMap.values());
+        : otherParticipants;
 
     // Filter out any participants with missing IDs just in case
     const validParticipants = allParticipants.filter(p => p && p.id);
@@ -118,7 +118,6 @@ export function ParticipantsList({
                                                 value={editName}
                                                 onChange={(e) => setEditName(e.target.value)}
                                                 onKeyDown={handleKeyDown}
-                                                // autoFocus
                                                 ref={(input) => { if (input) input.focus(); }}
                                                 className="bg-zinc-800 text-zinc-200 text-sm px-1 py-0.5 rounded border border-zinc-600 focus:outline-none focus:border-blue-500 w-full"
                                                 onBlur={submitName}
@@ -148,7 +147,7 @@ export function ParticipantsList({
                 </AnimatePresence>
             </ul>
 
-            {allParticipants.length === 0 && (
+            {validParticipants.length === 0 && (
                 <p className="text-sm text-zinc-500 italic">No participants yet</p>
             )}
         </div>

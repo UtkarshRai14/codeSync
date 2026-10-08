@@ -14,7 +14,6 @@ describe('useCodeExecution', () => {
         const { result } = renderHook(() => useCodeExecution('javascript'));
 
         expect(result.current.isExecuting).toBe(false);
-        expect(result.current.isLoading).toBe(false);
         expect(result.current.result).toBeNull();
         expect(result.current.isSupported).toBe(true);
     });

@@ -16,24 +16,6 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Generates a random color for participant cursors.
- * @returns Hex color string
- */
-export function generateRandomColor(): string {
-    const colors = [
-        '#3b82f6', // Blue
-        '#ef4444', // Red
-        '#22c55e', // Green
-        '#f59e0b', // Amber
-        '#8b5cf6', // Violet
-        '#ec4899', // Pink
-        '#06b6d4', // Cyan
-        '#f97316', // Orange
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
-}
-
-/**
  * Copies text to clipboard and returns success status.
  * @param text - Text to copy
  * @returns Promise resolving to success status
@@ -63,17 +45,4 @@ export function debounce<T extends (...args: any[]) => void>(
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => fn(...args), delay);
     };
-}
-
-/**
- * Formats a date for display.
- * @param date - Date to format
- * @returns Formatted date string
- */
-export function formatDate(date: Date | string): string {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
 }
